@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>quesitools — Formato de venta por hora del warmer</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:#fff7ef;color:#26221f;font-size:15px;line-height:1.4}
+main{max-width:860px;margin:0 auto;padding:14px 12px 40px}
+header{background:#b91c1c;color:#fff;padding:14px 16px 12px}
+header h1{margin:0;font-size:20px;line-height:1.2}
+header p{margin:2px 0 0;font-size:12.5px;opacity:.9}
+h2{font-size:17px;margin:6px 0 10px}
+.card{background:#fff;border:1px solid #e7d9c8;border-radius:10px;padding:12px;margin:10px 0}
+.muted{color:#78716c;font-size:13px}
+label.f{display:block;font-size:13px;color:#57534e;margin:10px 0 3px}
+input[type=text],input[type=date]{width:100%;padding:10px 9px;font-size:15px;border:1px solid #d6d3d1;border-radius:8px;background:#fff;color:#26221f}
+textarea{width:100%;padding:10px 9px;font-size:14px;border:1px solid #d6d3d1;border-radius:8px;background:#fff;color:#26221f;font-family:inherit;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button.btn{display:block;width:100%;border:none;border-radius:10px;padding:13px;font-size:16px;font-weight:700;cursor:pointer;margin:12px 0 0}
+button.secondary{background:#e7e5e4;color:#26221f}
+.hint{font-size:12.5px;color:#b45309;margin-top:6px}
+.warmer-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;background:#26221f;color:#fff;padding:8px 10px;border-radius:8px 8px 0 0;font-weight:700;font-size:13.5px;text-transform:uppercase;letter-spacing:.3px}
+table.warmer{width:100%;border-collapse:collapse;background:#fff;font-size:13px}
+table.warmer th,table.warmer td{border:1px solid #a8a29e;padding:5px 6px}
+table.warmer th{background:#f5f5f4;font-size:11px;text-transform:uppercase;text-align:center}
+table.warmer td.wn{text-align:right;white-space:nowrap}
+table.warmer td.wt{text-align:left;white-space:nowrap}
+table.warmer td.wh{background:#f5f5f4;font-weight:700;text-align:center;white-space:nowrap}
+.scrollx{overflow-x:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>quesitools</h1>
+  <p>Formato de venta por hora del warmer</p>
+</header>
+<main>
+  <div class="card">
+    <p class="muted">Pega el texto del Excel de comandas (copia las filas desde Excel, con la fila de encabezados) o sube el archivo .xlsx / .csv. La tablita se llena sola: solo cuenta pizzas, por la hora de fechadecaptura.</p>
+    <label class="f" for="warmer-sucursal">Sucursal</label>
+    <input type="text" id="warmer-sucursal" value="FILADLFIA">
+    <label class="f" for="warmer-text">Texto de comandas</label>
+    <textarea id="warmer-text" rows="6" placeholder="foliocomanda&#9;foliocuenta&#9;orden&#9;fechaapertura&#9;fechacierre&#9;mesero&#9;claveproducto&#9;fechadecaptura&#9;descripcion&#9;cantidad&#9;descuento&#9;importe"></textarea>
+    <label class="f" for="warmer-file">O sube un archivo (.xlsx o .csv)</label>
+    <input type="file" id="warmer-file" accept=".xlsx,.csv,.txt">
+    <div class="grid2">
+      <div><label class="f" for="warmer-date">Fecha a mostrar</label><input type="date" id="warmer-date"></div>
+      <div style="display:flex;align-items:flex-end"><button type="button" class="btn secondary" id="warmer-clear" style="margin:0">Limpiar</button></div>
+    </div>
+    <p id="warmer-error" class="hint" hidden></p>
+    <p id="warmer-status" class="muted"></p>
+  </div>
+  <div id="warmer-table-wrap"></div>
+</main>
+<script>
+"use strict";
+function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+/* ============ Formato de venta por hora del warmer (quesitools) ============
+   Lee el reporte de comandas (texto pegado desde Excel, .csv o .xlsx),
+   reconoce SOLO pizzas, las cuenta por la hora de fechadecaptura para la
+   fecha elegida y muestra la tablita VENTAS X HORA. Solo para mostrar:
+   no guarda nada. */
+const WARMER_COLS=["PEPERONI","HAWIANA","SUPREMA","PEP/HAW","PEP/SUP"];
+const WARMER_DIAS=["DOMINGO","LUNES","MARTES","MIÉRCOLES","JUEVES","VIERNES","SÁBADO"];
+let warmerRows=null; // filas ya parseadas: {date:"yyyy-mm-dd", hour, desc, qty}
+let warmerState={error:""}; // {read, error}
+
+function warmerNorm(s){
+  return String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+}
+
+/* Divide una línea en celdas respetando comillas (CSV). */
+function warmerSplitCsvLine(line,delim){
+  const out=[]; let cur="",inQ=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(inQ){
+      if(ch==='"'){ if(line[i+1]==='"'){ cur+='"'; i++; } else inQ=false; }
+      else cur+=ch;
+    } else if(ch==='"'&&cur===""){ inQ=true; }
+    else if(ch===delim){ out.push(cur); cur=""; }
+    else cur+=ch;
+  }
+  out.push(cur);
+  return out;
+}
+
+/* Mapea encabezados normalizados: captura (requerida), descrip (requerida),
+   cantidad (opcional). */
+function warmerMapHeaders(header){
+  const norm=(header||[]).map(warmerNorm);
+  const find=kw=>{ for(let i=0;i<norm.length;i++) if(norm[i].indexOf(kw)>=0) return i; return -1; };
+  return {captura:find("CAPTURA"),descrip:find("DESCRIP"),cantidad:find("CANTIDAD")};
+}
+
+/* "13/11/2026 11:33" o "13/11/2026 11:33:35" → {date:"2026-11-13",hour:11}. */
+function warmerParseCaptura(str){
+  const m=String(str==null?"":str).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+  if(!m) return null;
+  const d=parseInt(m[1],10),mo=parseInt(m[2],10),y=parseInt(m[3],10);
+  const hh=m[4]?parseInt(m[4],10):0,mm=m[5]?parseInt(m[5],10):0;
+  if(mo<1||mo>12||d<1||d>31||hh>23||mm>59) return null;
+  return {date:y+"-"+String(mo).padStart(2,"0")+"-"+String(d).padStart(2,"0"),hour:hh,min:mm};
+}
+
+/* Serial de Excel (días desde 1899-12-31, con el bug de 1900) → captura. */
+function warmerSerialToCaptura(serial){
+  const n=Number(serial);
+  if(!isFinite(n)||n<=0) return null;
+  const days=Math.floor(n)-(n>=61?1:0);
+  const frac=n-Math.floor(n);
+  const dt=new Date(Date.UTC(1899,11,31)+days*86400000);
+  const totalMin=Math.round(frac*1440);
+  const hour=Math.min(23,Math.floor(totalMin/60)),min=totalMin%60;
+  return {date:dt.getUTCFullYear()+"-"+String(dt.getUTCMonth()+1).padStart(2,"0")+"-"+String(dt.getUTCDate()).padStart(2,"0"),hour:hour,min:min};
+}
+
+/* Clasifica una descripción de producto. Reglas en orden; null = no cuenta. */
+function warmerClassify(desc){
+  const d=warmerNorm(desc);
+  if(!d) return null;
+  if(d.indexOf("PERSONAL")>=0) return null;
+  if(d==="CANELO") return null;
+  if(d.indexOf("COMBO")>=0) return null;
+  if(d.indexOf("EXTRA")>=0) return null;
+  if(d.indexOf("COMBINADA")>=0){
+    if(d.indexOf("HAWAIANA")>=0) return {kind:"lto",code:"PH"};
+    if(d.indexOf("SUPREMA")>=0) return {kind:"lto",code:"PS"};
+    return null;
+  }
+  if(d.indexOf("SARTEN")>=0) return {kind:"sarten",code:(d.indexOf("MEXICANA")>=0?"PM":"PEP")};
+  if(d.indexOf("PEPPERONI/HAWAIANA")>=0) return {kind:"col",col:"PEP/HAW"};
+  if(d.indexOf("PEPPERONI/SUPREMA")>=0) return {kind:"col",col:"PEP/SUP"};
+  if(d.indexOf("PEPPERONI/MEXICANA")>=0) return {kind:"lto",code:"PM"};
+  if(d.indexOf("PEPPERONI")>=0) return {kind:"col",col:"PEPERONI"};
+  if(d.indexOf("HAWAIANA")>=0) return {kind:"col",col:"HAWIANA"};
+  if(d.indexOf("SUPREMA")>=0) return {kind:"col",col:"SUPREMA"};
+  if(d.indexOf("MEXICANA")>=0) return {kind:"lto",code:"MEX"};
+  if(d.indexOf("JAMON")>=0) return {kind:"lto",code:"JAM"};
+  if(d.indexOf("CUBANA")>=0) return {kind:"lto",code:"CUB"};
+  if(d.indexOf("PASTOR")>=0) return {kind:"lto",code:"PAS"};
+  if(d.indexOf("3 CARNES")>=0) return {kind:"lto",code:"3C"};
+  if(d.indexOf("4 CARNES")>=0) return {kind:"lto",code:"4C"};
+  if(d.indexOf("FANATICA")>=0) return {kind:"lto",code:"FAN"};
+  if(d.indexOf("QUESO")>=0) return {kind:"lto",code:"Q"};
+  return null;
+}
+
+/* Arma la tablita de una fecha: {table:{hora:{cols,sarten,lto}},counted,ignored}. */
+function warmerBuildTable(rows,dateStr){
+  const table={};
+  for(let h=12;h<=21;h++){
+    const cols={}; WARMER_COLS.forEach(c=>{ cols[c]=0; });
+    table[h]={cols:cols,sarten:{},lto:{}};
+  }
+  let counted=0,ignored=0;
+  (rows||[]).forEach(r=>{
+    if(r.date!==dateStr) return;
+    if(r.hour<12||r.hour>21) return;
+    const cl=warmerClassify(r.desc);
+    if(!cl){ ignored++; return; }
+    counted+=r.qty;
+    const t=table[r.hour];
+    if(cl.kind==="col") t.cols[cl.col]+=r.qty;
+    else if(cl.kind==="sarten") t.sarten[cl.code]=(t.sarten[cl.code]||0)+r.qty;
+    else t.lto[cl.code]=(t.lto[cl.code]||0)+r.qty;
+  });
+  return {table:table,counted:counted,ignored:ignored};
+}
+
+/* Texto pegado (TSV/CSV) → {rows,read} o {error}. */
+function warmerRowsFromText(text){
+  const lines=String(text||"").split(/\r?\n/).filter(l=>l.trim()!=="");
+  if(!lines.length) return {error:"Pega el texto del Excel (con la fila de encabezados) o sube un archivo."};
+  const delim=lines[0].indexOf("\t")>=0?"\t":(lines[0].indexOf(";")>=0?";":",");
+  const map=warmerMapHeaders(warmerSplitCsvLine(lines[0],delim));
+  if(map.captura<0||map.descrip<0) return {error:"No encontré las columnas 'fechadecaptura' y 'descripcion'. Asegúrate de pegar también la fila de encabezados."};
+  const rows=[];
+  for(let i=1;i<lines.length;i++){
+    const cells=warmerSplitCsvLine(lines[i],delim);
+    const cap=warmerParseCaptura(cells[map.captura]);
+    if(!cap) continue;
+    let qty=1;
+    if(map.cantidad>=0){ const q=parseFloat(String(cells[map.cantidad]||"").replace(",",".")); if(isFinite(q)&&q>0) qty=Math.round(q); }
+    rows.push({date:cap.date,hour:cap.hour,desc:cells[map.descrip]||"",qty:qty});
+  }
+  return {rows:rows,read:lines.length-1};
+}
+
+/* Matriz de celdas (de un .xlsx ya leído) → {rows,read} o {error}. */
+function warmerRowsFromMatrix(matrix){
+  if(!matrix||!matrix.length) return {error:"El archivo no trae filas."};
+  const header=matrix[0].map(v=>v==null?"":String(v));
+  const map=warmerMapHeaders(header);
+  if(map.captura<0||map.descrip<0) return {error:"No encontré las columnas 'fechadecaptura' y 'descripcion' en el Excel."};
+  const rows=[];
+  for(let i=1;i<matrix.length;i++){
+    const r=matrix[i];
+    const raw=r[map.captura];
+    const cap=(typeof raw==="number")?warmerSerialToCaptura(raw):warmerParseCaptura(raw);
+    if(!cap) continue;
+    let qty=1;
+    if(map.cantidad>=0){ const q=parseFloat(String(r[map.cantidad]==null?"":r[map.cantidad]).replace(",",".")); if(isFinite(q)&&q>0) qty=Math.round(q); }
+    rows.push({date:cap.date,hour:cap.hour,desc:r[map.descrip]==null?"":String(r[map.descrip]),qty:qty});
+  }
+  return {rows:rows,read:matrix.length-1};
+}
+
+/* ---- Lector mínimo de .xlsx (zip + XML, sin librerías) ---- */
+async function warmerZipEntries(buf){
+  const bytes=new Uint8Array(buf),dv=new DataView(buf);
+  let eocd=-1;
+  for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65557);i--){
+    if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; }
+  }
+  if(eocd<0) throw new Error("zip sin directorio central");
+  const cdCount=dv.getUint16(eocd+10,true);
+  let off=dv.getUint32(eocd+16,true);
+  const entries={};
+  for(let n=0;n<cdCount;n++){
+    if(dv.getUint32(off,true)!==0x02014b50) throw new Error("directorio central inválido");
+    const method=dv.getUint16(off+10,true);
+    const compSize=dv.getUint32(off+20,true);
+    const nameLen=dv.getUint16(off+28,true);
+    const extraLen=dv.getUint16(off+30,true);
+    const commentLen=dv.getUint16(off+32,true);
+    const localOff=dv.getUint32(off+42,true);
+    const name=new TextDecoder().decode(bytes.subarray(off+46,off+46+nameLen));
+    entries[name]={method:method,compSize:compSize,localOff:localOff};
+    off+=46+nameLen+extraLen+commentLen;
+  }
+  return entries;
+}
+async function warmerZipExtract(buf,entries,name){
+  const e=entries[name];
+  if(!e) return null;
+  const dv=new DataView(buf),bytes=new Uint8Array(buf);
+  if(dv.getUint32(e.localOff,true)!==0x04034b50) throw new Error("entrada local inválida: "+name);
+  const nameLen=dv.getUint16(e.localOff+26,true);
+  const extraLen=dv.getUint16(e.localOff+28,true);
+  const start=e.localOff+30+nameLen+extraLen;
+  const data=bytes.subarray(start,start+e.compSize);
+  if(e.method===0) return data;
+  if(e.method!==8) throw new Error("método de compresión no soportado");
+  if(typeof DecompressionStream==="undefined") throw new Error("el navegador no puede descomprimir .xlsx aquí; pega el texto");
+  const ds=new DecompressionStream("deflate-raw");
+  const w=ds.writable.getWriter(); w.write(data); w.close();
+  const r=ds.readable.getReader(); const chunks=[]; let total=0;
+  while(true){ const x=await r.read(); if(x.done) break; chunks.push(x.value); total+=x.value.length; }
+  const out=new Uint8Array(total); let p=0;
+  chunks.forEach(c=>{ out.set(c,p); p+=c.length; });
+  return out;
+}
+function warmerColToIdx(letters){ let n=0; for(let i=0;i<letters.length;i++) n=n*26+(letters.charCodeAt(i)-64); return n-1; }
+function warmerParseSharedStrings(xmlText){
+  const doc=new DOMParser().parseFromString(xmlText,"text/xml");
+  const sis=doc.getElementsByTagName("si");
+  const out=[];
+  for(let i=0;i<sis.length;i++){
+    const ts=sis[i].getElementsByTagName("t");
+    let s=""; for(let k=0;k<ts.length;k++) s+=ts[k].textContent;
+    out.push(s);
+  }
+  return out;
+}
+function warmerXlsxToMatrix(sheetXmlText,sharedStrings){
+  const doc=new DOMParser().parseFromString(sheetXmlText,"text/xml");
+  const rowsEls=doc.getElementsByTagName("row");
+  const matrix=[];
+  for(let i=0;i<rowsEls.length;i++){
+    const cells=rowsEls[i].getElementsByTagName("c");
+    const row=[];
+    for(let j=0;j<cells.length;j++){
+      const c=cells[j];
+      const m=(c.getAttribute("r")||"").match(/^([A-Z]+)/);
+      const colIdx=m?warmerColToIdx(m[1]):j;
+      const t=c.getAttribute("t");
+      let val="";
+      if(t==="s"){
+        const v=c.getElementsByTagName("v")[0];
+        const idx=v?parseInt(v.textContent,10):NaN;
+        val=(sharedStrings&&isFinite(idx))?sharedStrings[idx]:"";
+      } else if(t==="inlineStr"){
+        const isEls=c.getElementsByTagName("t");
+        let s=""; for(let k=0;k<isEls.length;k++) s+=isEls[k].textContent;
+        val=s;
+      } else {
+        const v=c.getElementsByTagName("v")[0];
+        val=v?v.textContent:"";
+        if(t!=="str"&&t!=="e"&&val!==""&&isFinite(Number(val))) val=Number(val);
+      }
+      while(row.length<colIdx) row.push("");
+      row[colIdx]=val;
+    }
+    matrix.push(row);
+  }
+  return matrix;
+}
+async function warmerReadXlsx(buf){
+  const entries=await warmerZipEntries(buf);
+  const dec=new TextDecoder();
+  const wbBytes=await warmerZipExtract(buf,entries,"xl/workbook.xml");
+  if(!wbBytes) throw new Error("no encontré workbook.xml");
+  const wbDoc=new DOMParser().parseFromString(dec.decode(wbBytes),"text/xml");
+  const sheets=wbDoc.getElementsByTagName("sheet");
+  let sheetPath="xl/worksheets/sheet1.xml";
+  if(sheets.length){
+    let rid=null;
+    for(let a=0;a<sheets[0].attributes.length;a++){
+      const at=sheets[0].attributes[a];
+      if(at.name==="r:id"||at.localName==="id") rid=at.value;
+    }
+    const relsBytes=await warmerZipExtract(buf,entries,"xl/_rels/workbook.xml.rels");
+    if(relsBytes&&rid){
+      const relsDoc=new DOMParser().parseFromString(dec.decode(relsBytes),"text/xml");
+      const rels=relsDoc.getElementsByTagName("Relationship");
+      for(let i=0;i<rels.length;i++){
+        if(rels[i].getAttribute("Id")===rid){
+          let target=rels[i].getAttribute("Target")||"";
+          if(target.indexOf("xl/")===0) sheetPath=target;
+          else if(target.charAt(0)==="/") sheetPath=target.slice(1);
+          else sheetPath="xl/"+target;
+          break;
+        }
+      }
+    }
+  }
+  const ssBytes=await warmerZipExtract(buf,entries,"xl/sharedStrings.xml");
+  const shared=ssBytes?warmerParseSharedStrings(dec.decode(ssBytes)):[];
+  const sheetBytes=await warmerZipExtract(buf,entries,sheetPath);
+  if(!sheetBytes) throw new Error("no encontré la hoja de datos");
+  return warmerXlsxToMatrix(dec.decode(sheetBytes),shared);
+}
+
+/* ---- Render y eventos ---- */
+function warmerRender(){
+  const wrap=document.getElementById("warmer-table-wrap");
+  const status=document.getElementById("warmer-status");
+  const err=document.getElementById("warmer-error");
+  if(!wrap) return;
+  if(!warmerRows||!warmerRows.length){
+    wrap.innerHTML=""; status.textContent="";
+    err.textContent=warmerState.error||""; err.hidden=!warmerState.error;
+    return;
+  }
+  err.textContent=""; err.hidden=true;
+  const dateInput=document.getElementById("warmer-date");
+  const dateStr=dateInput?dateInput.value:"";
+  if(!dateStr){ wrap.innerHTML=""; status.textContent=""; return; }
+  const built=warmerBuildTable(warmerRows,dateStr);
+  const sucEl=document.getElementById("warmer-sucursal");
+  const suc=((sucEl&&sucEl.value)||"").trim().toUpperCase()||"—";
+  const pp=dateStr.split("-").map(Number);
+  const dt=new Date(pp[0],pp[1]-1,pp[2]);
+  const dia=WARMER_DIAS[dt.getDay()];
+  const fecha=String(pp[2]).padStart(2,"0")+"/"+String(pp[1]).padStart(2,"0")+"/"+pp[0];
+  let h='<div class="warmer-head"><span>'+esc(suc)+'</span><span>'+dia+' · '+fecha+'</span></div>';
+  h+='<div class="scrollx"><table class="warmer"><tr><th>VENTAS X HORA</th><th>PEPERONI</th><th>HAWIANA</th><th>SUPREMA</th><th>PEP/HAW</th><th>PEP/SUP</th><th>SARTEN</th><th>LTO</th></tr>';
+  for(let hr=12;hr<=21;hr++){
+    const t=built.table[hr];
+    const sartenTxt=Object.keys(t.sarten).sort().map(c=>t.sarten[c]+c).join(" ");
+    const ltoTxt=Object.keys(t.lto).sort().map(c=>t.lto[c]+c).join(" ");
+    h+='<tr><td class="wh">'+hr+':00</td>'
+      +WARMER_COLS.map(c=>'<td class="wn">'+(t.cols[c]?t.cols[c]:"")+'</td>').join("")
+      +'<td class="wt">'+esc(sartenTxt)+'</td><td class="wt">'+esc(ltoTxt)+'</td></tr>';
+  }
+  h+='</table></div>';
+  wrap.innerHTML=h;
+  status.textContent=warmerState.read+" filas leídas · "+built.counted+" pizzas contadas · "+built.ignored+" ignoradas";
+}
+function warmerSetRows(res){
+  if(res.error){ warmerRows=null; warmerState={error:res.error}; warmerRender(); return; }
+  warmerRows=res.rows; warmerState={read:res.read,error:""};
+  const dateInput=document.getElementById("warmer-date");
+  const dates=[...new Set(res.rows.map(r=>r.date))].sort();
+  if(dates.length&&dateInput) dateInput.value=dates[dates.length-1];
+  warmerRender();
+}
+function warmerFromText(){
+  const ta=document.getElementById("warmer-text");
+  const txt=ta?ta.value:"";
+  if(!txt.trim()){ warmerRows=null; warmerState={error:""}; warmerRender(); return; }
+  warmerSetRows(warmerRowsFromText(txt));
+}
+function warmerHandleFile(file){
+  if(!file) return;
+  const name=(file.name||"").toLowerCase();
+  const reader=new FileReader();
+  reader.onload=()=>{
+    const buf=reader.result;
+    const bytes=new Uint8Array(buf.slice(0,4));
+    const isOle2=bytes[0]===0xD0&&bytes[1]===0xCF&&bytes[2]===0x11&&bytes[3]===0xE0;
+    if(isOle2||(/\.xls$/i.test(name)&&!/\.xlsx$/i.test(name))){
+      warmerRows=null;
+      warmerState={error:"El archivo .xls no se puede leer aquí. Pega el texto (copia las filas desde Excel) o guárdalo como .xlsx."};
+      warmerRender(); return;
+    }
+    if(/\.xlsx$/i.test(name)){
+      warmerReadXlsx(buf).then(matrix=>{
+        warmerSetRows(warmerRowsFromMatrix(matrix));
+      }).catch(e=>{
+        warmerRows=null;
+        warmerState={error:"No pude leer el .xlsx: "+(e&&e.message?e.message:"formato no reconocido")+". Prueba pegando el texto."};
+        warmerRender();
+      });
+      return;
+    }
+    const text=new TextDecoder("utf-8").decode(buf);
+    warmerSetRows(warmerRowsFromText(text));
+  };
+  reader.onerror=()=>{ warmerRows=null; warmerState={error:"No pude leer el archivo."}; warmerRender(); };
+  reader.readAsArrayBuffer(file);
+}
+(function warmerInit(){
+  const ta=document.getElementById("warmer-text");
+  const fi=document.getElementById("warmer-file");
+  const di=document.getElementById("warmer-date");
+  const cl=document.getElementById("warmer-clear");
+  if(ta) ta.addEventListener("input",warmerFromText);
+  if(fi) fi.addEventListener("change",e=>{ const f=e.target.files&&e.target.files[0]; if(f) warmerHandleFile(f); });
+  if(di) di.addEventListener("change",warmerRender);
+  if(cl) cl.addEventListener("click",()=>{
+    if(ta) ta.value=""; if(fi) fi.value=""; if(di) di.value="";
+    warmerRows=null; warmerState={error:""}; warmerRender();
+  });
+})();
+</script>
+</body>
+</html>
