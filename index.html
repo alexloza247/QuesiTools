@@ -20,6 +20,7 @@ textarea{width:100%;padding:10px 9px;font-size:14px;border:1px solid #d6d3d1;bor
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 button.btn{display:block;width:100%;border:none;border-radius:10px;padding:13px;font-size:16px;font-weight:700;cursor:pointer;margin:12px 0 0}
 button.secondary{background:#e7e5e4;color:#26221f}
+button.primary{background:#b91c1c;color:#fff}
 .hint{font-size:12.5px;color:#b45309;margin-top:6px}
 .warmer-head{display:flex;justify-content:space-between;gap:8px;align-items:baseline;background:#26221f;color:#fff;padding:8px 10px;border-radius:8px 8px 0 0;font-weight:700;font-size:13.5px;text-transform:uppercase;letter-spacing:.3px}
 table.warmer{width:100%;border-collapse:collapse;background:#fff;font-size:13px}
@@ -38,7 +39,7 @@ table.warmer td.wh{background:#f5f5f4;font-weight:700;text-align:center;white-sp
 </header>
 <main>
   <div class="card">
-    <p class="muted">Pega el texto del Excel de comandas (copia las filas desde Excel, con la fila de encabezados) o sube el archivo .xlsx / .csv. La tablita se llena sola: solo cuenta pizzas, por la hora de fechadecaptura.</p>
+    <p class="muted">Pega el texto del Excel de comandas (copia las filas desde Excel, con la fila de encabezados) o sube el archivo .xlsx / .csv. La tablita se llena sola: solo cuenta pizzas, por la hora de fechadecaptura. Debajo de la tablita puedes descargar el Excel con el mismo formato de la plantilla.</p>
     <label class="f" for="warmer-sucursal">Sucursal</label>
     <input type="text" id="warmer-sucursal" value="FILADLFIA">
     <label class="f" for="warmer-text">Texto de comandas</label>
@@ -335,6 +336,119 @@ async function warmerReadXlsx(buf){
   return warmerXlsxToMatrix(dec.decode(sheetBytes),shared);
 }
 
+/* ---- Generador de .xlsx (mismo formato que la plantilla, sin librerías) ---- */
+const WARMER_STYLES_XML=`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" mc:Ignorable="x14ac" xmlns:x14ac="http://schemas.microsoft.com/office/spreadsheetml/2009/9/ac"><fonts count="5" x14ac:knownFonts="1"><font><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font><font><b/><sz val="11"/><color theme="1"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font><font><b/><sz val="16"/><color theme="0"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font><font><sz val="10"/><name val="Arial"/><family val="2"/></font><font><b/><sz val="11"/><name val="Calibri"/><family val="2"/><scheme val="minor"/></font></fonts><fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor theme="0"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor theme="3" tint="-0.249977111117893"/><bgColor indexed="64"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6D3F0"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="15"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="thin"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border><border><left style="medium"><color indexed="64"/></left><right/><top style="medium"><color indexed="64"/></top><bottom/><diagonal/></border><border><left/><right/><top style="medium"><color indexed="64"/></top><bottom/><diagonal/></border><border><left/><right style="medium"><color indexed="64"/></right><top style="medium"><color indexed="64"/></top><bottom/><diagonal/></border><border><left style="medium"><color indexed="64"/></left><right/><top/><bottom/><diagonal/></border><border><left/><right style="medium"><color indexed="64"/></right><top/><bottom/><diagonal/></border><border><left style="medium"><color indexed="64"/></left><right/><top/><bottom style="medium"><color indexed="64"/></bottom><diagonal/></border><border><left/><right/><top/><bottom style="medium"><color indexed="64"/></bottom><diagonal/></border><border><left/><right style="medium"><color indexed="64"/></right><top/><bottom style="medium"><color indexed="64"/></bottom><diagonal/></border><border><left style="medium"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="medium"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border><border><left style="thin"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="medium"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border><border><left style="thin"><color indexed="64"/></left><right style="medium"><color indexed="64"/></right><top style="medium"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border><border><left style="medium"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="thin"><color indexed="64"/></top><bottom style="thin"><color indexed="64"/></bottom><diagonal/></border><border><left style="medium"><color indexed="64"/></left><right style="thin"><color indexed="64"/></right><top style="thin"><color indexed="64"/></top><bottom style="medium"><color indexed="64"/></bottom><diagonal/></border></borders><cellStyleXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/><xf numFmtId="0" fontId="3" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="18"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="center" wrapText="1"/></xf><xf numFmtId="0" fontId="4" fillId="4" borderId="10" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="4" fillId="4" borderId="11" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="0" fontId="4" fillId="4" borderId="12" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="20" fontId="4" fillId="4" borderId="13" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="20" fontId="4" fillId="4" borderId="14" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf><xf numFmtId="14" fontId="1" fillId="4" borderId="8" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="2" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="3" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="4" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="5" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="6" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="7" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="8" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf><xf numFmtId="0" fontId="2" fillId="3" borderId="9" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf></cellXfs><cellStyles count="2"><cellStyle name="Normal" xfId="0" builtinId="0"/><cellStyle name="Normal 2" xfId="1"/></cellStyles><dxfs count="0"/><tableStyles count="0" defaultTableStyle="TableStyleMedium2" defaultPivotStyle="PivotStyleMedium9"/></styleSheet>`;
+function warmerXesc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+function warmerXstr(ref,s,val){return '<c r="'+ref+'" s="'+s+'" t="inlineStr"><is><t xml:space="preserve">'+warmerXesc(val)+'</t></is></c>';}
+function warmerXnum(ref,s,val){return '<c r="'+ref+'" s="'+s+'"><v>'+val+'</v></c>';}
+function warmerXblank(ref,s){return '<c r="'+ref+'" s="'+s+'"/>';}
+function warmerSheetXml(opts){
+  const suc=opts.sucursal,dia=opts.dia,serial=opts.serial,table=opts.table;
+  const blank=(ref,s)=>warmerXblank(ref,s);
+  let x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><tabColor rgb="FF3366FF"/><pageSetUpPr fitToPage="1"/></sheetPr><dimension ref="E2:L16"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr baseColWidth="10" defaultRowHeight="15"/><cols><col min="5" max="5" width="14.7109375" bestFit="1" customWidth="1"/><col min="6" max="8" width="9.5703125" bestFit="1" customWidth="1"/><col min="9" max="9" width="9.7109375" bestFit="1" customWidth="1"/><col min="10" max="10" width="8.5703125" bestFit="1" customWidth="1"/><col min="11" max="11" width="8.5703125" customWidth="1"/></cols><sheetData>';
+  x+='<row r="2">'+warmerXnum("J2",8,serial)+blank("K2",8)+blank("L2",8)+'</row>';
+  const HB=[[9,10,10,10,11,9,10,11],[12,13,13,13,14,12,13,14],[15,16,16,16,17,15,16,17]];
+  const HCOLS=["E","F","G","H","I","J","K","L"];
+  for(let rr=0;rr<3;rr++){
+    const rowNum=3+rr;
+    let cells="";
+    for(let cc=0;cc<8;cc++){
+      const ref=HCOLS[cc]+rowNum,s=HB[rr][cc];
+      if(rr===0&&cc===0) cells+=warmerXstr(ref,s,suc);
+      else if(rr===0&&cc===5) cells+=warmerXstr(ref,s,dia);
+      else cells+=blank(ref,s);
+    }
+    x+='<row r="'+rowNum+'">'+cells+'</row>';
+  }
+  x+='<row r="6">'+warmerXstr("E6",3,"VENTAS X HORA")+warmerXstr("F6",4,"PEPERONI")+warmerXstr("G6",4,"HAWIANA")+warmerXstr("H6",4,"SUPREMA")+warmerXstr("I6",4,"PEP/ HAW")+warmerXstr("J6",4,"PEP/SUP")+warmerXstr("K6",4,"SARTEN")+warmerXstr("L6",5,"LTO")+'</row>';
+  for(let hr=12;hr<=21;hr++){
+    const rowNum=hr-5, t=table[hr];
+    const hs=(hr===21)?7:6;
+    const sartenTxt=Object.keys(t.sarten).sort().map(c=>t.sarten[c]+c).join(" ");
+    const ltoTxt=Object.keys(t.lto).sort().map(c=>t.lto[c]+c).join(" ");
+    let cells=warmerXnum("E"+rowNum,hs,hr/24);
+    const cols=["F","G","H","I","J"];
+    for(let ci=0;ci<5;ci++){
+      const v=t.cols[WARMER_COLS[ci]];
+      cells+= v? warmerXnum(cols[ci]+rowNum,1,v) : blank(cols[ci]+rowNum,1);
+    }
+    cells+= sartenTxt? warmerXstr("K"+rowNum,1,sartenTxt) : blank("K"+rowNum,1);
+    cells+= ltoTxt? warmerXstr("L"+rowNum,1,ltoTxt) : blank("L"+rowNum,1);
+    x+='<row r="'+rowNum+'">'+cells+'</row>';
+  }
+  x+='</sheetData><mergeCells count="3"><mergeCell ref="J2:L2"/><mergeCell ref="E3:I5"/><mergeCell ref="J3:L5"/></mergeCells><printOptions horizontalCentered="1"/><pageMargins left="0.25" right="0.25" top="0.4" bottom="0.4" header="0.2" footer="0.2"/><pageSetup paperSize="1" orientation="landscape" fitToWidth="1" fitToHeight="1"/></worksheet>';
+  return x;
+}
+const WARMER_CRC_TABLE=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);t[n]=c>>>0;}return t;})();
+function warmerCrc32(bytes){let c=0xFFFFFFFF;for(let i=0;i<bytes.length;i++)c=WARMER_CRC_TABLE[(c^bytes[i])&0xFF]^(c>>>8);return (c^0xFFFFFFFF)>>>0;}
+function warmerZipStore(files){
+  const enc=new TextEncoder(),parts=[],central=[],offsets=[];
+  let offset=0;
+  files.forEach(f=>{
+    const nameBytes=enc.encode(f.name),data=f.data,crc=warmerCrc32(data);
+    const lh=new DataView(new ArrayBuffer(30));
+    lh.setUint32(0,0x04034b50,true);lh.setUint16(4,20,true);lh.setUint16(6,0x0800,true);lh.setUint16(8,0,true);
+    lh.setUint16(10,0,true);lh.setUint16(12,0x21,true);
+    lh.setUint32(14,crc,true);lh.setUint32(18,data.length,true);lh.setUint32(22,data.length,true);
+    lh.setUint16(26,nameBytes.length,true);lh.setUint16(28,0,true);
+    offsets.push(offset);
+    parts.push(new Uint8Array(lh.buffer),nameBytes,data);
+    offset+=30+nameBytes.length+data.length;
+    const ch=new DataView(new ArrayBuffer(46));
+    ch.setUint32(0,0x02014b50,true);ch.setUint16(4,20,true);ch.setUint16(6,20,true);ch.setUint16(8,0x0800,true);ch.setUint16(10,0,true);
+    ch.setUint16(12,0,true);ch.setUint16(14,0x21,true);
+    ch.setUint32(16,crc,true);ch.setUint32(20,data.length,true);ch.setUint32(24,data.length,true);
+    ch.setUint16(28,nameBytes.length,true);ch.setUint16(30,0,true);ch.setUint16(32,0,true);ch.setUint16(34,0,true);ch.setUint16(36,0,true);
+    ch.setUint32(38,0,true);ch.setUint32(42,offsets[offsets.length-1],true);
+    central.push(new Uint8Array(ch.buffer),nameBytes);
+  });
+  const cdSize=central.reduce((a,p)=>a+p.length,0);
+  const eocd=new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0,0x06054b50,true);eocd.setUint16(4,0,true);eocd.setUint16(6,0,true);
+  eocd.setUint16(8,files.length,true);eocd.setUint16(10,files.length,true);
+  eocd.setUint32(12,cdSize,true);eocd.setUint32(16,offset,true);eocd.setUint16(20,0,true);
+  const all=[...parts,...central,new Uint8Array(eocd.buffer)];
+  const total=all.reduce((a,p)=>a+p.length,0),out=new Uint8Array(total);
+  let p=0;all.forEach(x=>{out.set(x,p);p+=x.length;});
+  return out;
+}
+function warmerBuildXlsxBytes(opts){
+  const enc=new TextEncoder();
+  const contentTypes='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+  const rels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+  const wbRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+  const workbook='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView xWindow="0" yWindow="0" windowWidth="20730" windowHeight="11760"/></bookViews><sheets><sheet name="'+warmerXesc(opts.dia)+'" sheetId="1" r:id="rId1"/></sheets></workbook>';
+  const files=[
+    {name:"[Content_Types].xml",data:enc.encode(contentTypes)},
+    {name:"_rels/.rels",data:enc.encode(rels)},
+    {name:"xl/workbook.xml",data:enc.encode(workbook)},
+    {name:"xl/_rels/workbook.xml.rels",data:enc.encode(wbRels)},
+    {name:"xl/worksheets/sheet1.xml",data:enc.encode(warmerSheetXml(opts))},
+    {name:"xl/styles.xml",data:enc.encode(WARMER_STYLES_XML)}
+  ];
+  return warmerZipStore(files);
+}
+function warmerDownloadXlsx(){
+  const dateInput=document.getElementById("warmer-date");
+  const dateStr=dateInput?dateInput.value:"";
+  if(!dateStr||!warmerRows||!warmerRows.length) return;
+  const built=warmerBuildTable(warmerRows,dateStr);
+  const sucEl=document.getElementById("warmer-sucursal");
+  const suc=((sucEl&&sucEl.value)||"").trim().toUpperCase()||"—";
+  const pp=dateStr.split("-").map(Number);
+  const dt=new Date(pp[0],pp[1]-1,pp[2]);
+  const dia=WARMER_DIAS[dt.getDay()];
+  const serial=Math.round((Date.UTC(pp[0],pp[1]-1,pp[2])-Date.UTC(1899,11,30))/86400000);
+  const bytes=warmerBuildXlsxBytes({sucursal:suc,dia:dia,serial:serial,table:built.table});
+  const blob=new Blob([bytes],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="formato-warmer-"+dateStr+".xlsx";
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
 /* ---- Render y eventos ---- */
 function warmerRender(){
   const wrap=document.getElementById("warmer-table-wrap");
@@ -368,7 +482,10 @@ function warmerRender(){
       +'<td class="wt">'+esc(sartenTxt)+'</td><td class="wt">'+esc(ltoTxt)+'</td></tr>';
   }
   h+='</table></div>';
+  h+='<button type="button" class="btn primary" id="warmer-excel-btn">Descargar Excel del formato warmer</button>';
   wrap.innerHTML=h;
+  const excelBtn=document.getElementById("warmer-excel-btn");
+  if(excelBtn) excelBtn.addEventListener("click",warmerDownloadXlsx);
   status.textContent=warmerState.read+" filas leídas · "+built.counted+" pizzas contadas · "+built.ignored+" ignoradas";
 }
 function warmerSetRows(res){
